@@ -1,3 +1,5 @@
+import React, { useState, useEffect } from 'react';
+
 import VisNetwork from '../components/VisNetwork';
 import AstAnalizer from '../components/AstAnalizer';
  
@@ -94,11 +96,31 @@ function lol() {
 }
 `;
 
-    const ast = new AstAnalizer();
-    ast.analyze(code4);
+    const [ast, setAst] = useState();
 
-    return [
-        <textarea>{ code4 }</textarea>,
-        <VisNetwork graph={ ast.blocks } links={ ast.links } />
-    ];
+    useEffect(() => {
+        try {
+            const localAst = new AstAnalizer();
+            localAst.analyze(code4);
+            setAst(localAst);
+        } catch (error) {
+            console.log(error);
+        }
+    }, [code4]);
+
+    function handleCodeChange(e) {
+        try {
+            const localAst = new AstAnalizer();
+            localAst.analyze(e.target.value);
+            setAst(localAst);
+        } catch (error) {
+            console.log(error);
+        }
+    }
+
+    return <>
+        <textarea onChange={ handleCodeChange }>{ code4 }</textarea>
+        { ast ? <VisNetwork graph={ ast.blocks } links={ ast.links } />
+              : null }
+    </>;
 }
