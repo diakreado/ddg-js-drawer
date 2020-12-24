@@ -97,12 +97,8 @@ function lol() {
     const ast = new AstAnalizer();
     ast.analyze(code4);
 
-    return (
-        <div>
-            <p>{ code1 }</p>
-            <p>{ code2 }</p>
-            <p>{ code3 }</p>
-            <VisNetwork graph={ ast.blocks } links={ ast.links } />
-        </div>
-    );
+    return [
+        <textarea>{ code4 }</textarea>,
+        <VisNetwork graph={ ast.blocks } links={ ast.links } />
+    ];
 }
