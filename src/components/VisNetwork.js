@@ -34,6 +34,6 @@ export default function VisNetwork(props) {
     }, [appRef, props.graph, props.links]);
 
     return (
-        <div style={{ height: '600px' }} ref={ appRef } />
+        <div ref={ appRef } />
     );
 };
