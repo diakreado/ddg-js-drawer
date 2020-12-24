@@ -54,6 +54,18 @@ class AstAnalyzer {
         arrPart.value = '[' + arrValue + ']';
     }
 
+    parseFunctionDeclaration(node) {
+        const functionName = node.id.name;
+        const params = node.params;
+        const arrParams = params.map(param => param.name);
+        return [{
+            operation  : `function ${ functionName }(${ arrParams })`,
+            dependency : [],
+            self       : arrParams,
+            context    : [],
+        }];
+    }
+
     parseVariableDeclaration(node) {
         const declaraion = node.declarations[0];
 
@@ -146,8 +158,10 @@ class AstAnalyzer {
 
         if (expression.operator === '=' || expression.operator === '+=' || expression.operator === '-=') {
             rightPart.self.push(expression.left.name);
+            if (expression.operator === '+=' || expression.operator === '-=') {
+                rightPart.dependency.push(expression.left.name);
+            }
         }
-
         return [{
             operation  : `${ expression.left.name } ${ expression.operator } ${ rightPart.value }`,
             dependency : rightPart.dependency,
@@ -212,10 +226,10 @@ class AstAnalyzer {
 
         let nestedElements = [];
         for(const el of body.body) {
-            const parseEls = this.parseElement(el);
+            let parseEls = this.parseElement(el);
             parseEls.forEach(item => { item.context.push(`loop_${localLoopId}`); });
+            if(parseEls[0].operation === 'break') { parseEls = []; break; }
             nestedElements = nestedElements.concat(parseEls);
-            if(parseEls[0].operation === 'break') { break; }
         }
 
         return [{
@@ -257,6 +271,7 @@ class AstAnalyzer {
             operation  : `if(${ testPart.value })`,
             dependency : testPart.dependency,
             context    : [],
+            self       : [],
         }, ...consequentArr, ...alternateArr];
     }
 
@@ -284,6 +299,7 @@ class AstAnalyzer {
         if (node.type === 'BreakStatement') {
             return [{   operation  : 'break',
                         dependency : [],
+                        self       : [],
                         context    : [],  }];
         }
         if (node.type === 'IfStatement') {
@@ -292,6 +308,8 @@ class AstAnalyzer {
     }
 
     createDDG() {
+        const functionNode = this.tree.program.body[0];
+        this.blocks = this.blocks.concat(this.parseFunctionDeclaration(functionNode));
         const nodes = this.tree.program.body[0].body.body;
         nodes.forEach(el => { 
             const operations = this.parseElement(el);
@@ -303,26 +321,27 @@ class AstAnalyzer {
                 id,
                 self    : el.self,
                 context : el.context,
+                value   : el.operation,
             }]
         }, []);
 
-        console.log('selfArr', selfArr);
+        // console.log('selfArr', selfArr);
 
         for (let i = 0; i < this.blocks.length; i++) {
             const node = this.blocks[i];
 
             node.dependency = [...new Set(node.dependency)];
-
-            // console.log('node.dependency', i, node.dependency);
-
             const partOfSelf = selfArr.slice(0, i);
             for (let j = 0; j < node.dependency.length; j++) {
-                const el = node.dependency[j];
+                const dependencyElement = node.dependency[j];
+                const context           = node.context[0];
 
-                const uniqArr = [];
+                const uniqTypeArr = [];
+                const uniqElArr   = [];
+                let numberOfBranch = 0;
                 for (let k = partOfSelf.length-1; k >= 0; k--) {
                     const x = partOfSelf[k];
-                    const result = x.self?.find(y => y === el);
+                    const result = x.self?.find(y => y === dependencyElement);
                     if (result) {
                         let currentType = '';
                         if (x.context.length === 0) {
@@ -330,35 +349,29 @@ class AstAnalyzer {
                         } else if (x.context[0].match('branch|loop')) {
                             currentType = x.context[0];
                         }
-                        if (!uniqArr.includes(currentType)) {
+                        if (!uniqTypeArr.includes(currentType) && numberOfBranch < 2) {
+                            if (context && context.match('branch') && currentType.match('branch') && context !== currentType) {
+                                continue;
+                            }
+                            if (uniqTypeArr.length === 1 && context === uniqTypeArr[0]) {
+                                continue;
+                            }
                             this.links.push({
-                                from : i,
+                                from :  i,
                                 to   :  x.id,
                             });
-                            uniqArr.push(currentType);
+                            if (currentType.match('branch')) {
+                                numberOfBranch++;
+                            }
+                            uniqElArr.push(x.self[0]);
+                            uniqTypeArr.push(currentType);
                         }
                     }
                 }
-
-                // const x = selfArr.slice(0, i).reverse().find(x => x.self?.find(y => y === el));
-                // // console.log(x);
-
-                // if (x) {
-                //     this.links.push({
-                //         from : i,
-                //         to   : x.id,
-                //     });
-                // }
             }
         }
-        console.log(this.links);
-
-
+        // console.log(this.links);
         // console.log('================================================');
-        // this.blocks.forEach(el => console.log(el));
-        console.log('================================================');
-        // console.log(this.tree);
-        // console.log(this.code);
     }
 
 }

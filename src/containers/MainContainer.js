@@ -1,4 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import AceEditor from "react-ace";
+import "ace-builds/src-noconflict/mode-javascript";
+import "ace-builds/src-noconflict/snippets/javascript";
+import "ace-builds/src-noconflict/theme-solarized_light";
+import "ace-builds/src-min-noconflict/ext-searchbox";
+import "ace-builds/src-min-noconflict/ext-language_tools";
+
 
 import VisNetwork from '../components/VisNetwork';
 import AstAnalizer from '../components/AstAnalizer';
@@ -42,7 +49,6 @@ function lol() {
     c = i;
 }
 `;
-
 const code2 = `
 function lol() {
 
@@ -55,7 +61,6 @@ function lol() {
     const result = x - 1;
 }
 `;
-
 const code3 = `
 function lol() {
     let a = 3;
@@ -78,8 +83,6 @@ function lol() {
     const result = c + 1;
 }
 `;
-
-
 const code4 = `
 function lol() {
     let a = 3;
@@ -95,23 +98,97 @@ function lol() {
     b = a;
 }
 `;
+const code5 = `
+function lol() {
+    let a = 2;
+    let b = a + 2;
 
-    const [ast, setAst] = useState();
+    a += b;
+
+    if (a > 10) {
+     b = a;
+    } else {
+     b = a - 1;
+    }
+
+    a += 1;
+    b = a*4;
+}
+`;
+const code6 = `
+function lol(n) {
+    let a = 3;
+    let b = a;
+    b -= a;
+    while (b < 30 * a) {
+        a = b;
+        b+= a;
+    }
+}
+`;
+const code7 = `
+function lol(n) {
+    let a = 3;
+    let b = a;
+    let c = b + a;
+    if (c < 10) {
+    a = c
+    b = c + a
+    }
+    b = a
+}
+`;
+const code8 = `
+function lol() {
+    let a = 3;
+    let b = a;
+    let c = 93 + n;
+    let k = 12;
+    for (let i = 0; i < c; i++){
+        b += a + i
+        a = k + 43
+        break
+        k = a + b
+        c = k - a
+    }
+    b = c % k
+}
+`;
+const code9 = `
+function lol(n) {
+    let a = 0;
+    let b = 1;
+    let c = 0;
+    if (n < 2) {
+      return n;
+    }
+    for (let i = 0; i < n; i++) {
+    c = a + b
+    a = b
+    b = c
+    }
+    return c;
+}
+`;
+
+    const [ast,  setAst ] = useState();
+    const [code, setCode] = useState(code6);
 
     useEffect(() => {
         try {
             const localAst = new AstAnalizer();
-            localAst.analyze(code4);
+            localAst.analyze(code);
             setAst(localAst);
         } catch (error) {
             console.log(error);
         }
-    }, [code4]);
+    }, [code]);
 
-    function handleCodeChange(e) {
+    function handleCodeChange(newCode) {
         try {
+            setCode(newCode)
             const localAst = new AstAnalizer();
-            localAst.analyze(e.target.value);
+            localAst.analyze(newCode);
             setAst(localAst);
         } catch (error) {
             console.log(error);
@@ -119,7 +196,17 @@ function lol() {
     }
 
     return <>
-        <textarea onChange={ handleCodeChange }>{ code4 }</textarea>
+        <AceEditor
+            className="texteditor"
+            mode="javascript"
+            height="100%"
+            width="100%"
+            theme="solarized_light"
+            value={ code }
+            onChange={ handleCodeChange }
+            fontSize={ 22 }
+            showPrintMargin={ true }
+          />
         { ast ? <VisNetwork graph={ ast.blocks } links={ ast.links } />
               : null }
     </>;

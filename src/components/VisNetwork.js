@@ -5,7 +5,6 @@ import { DataSet, Network } from 'vis';
 const options = {
     edges:{ arrows: { to: { enabled: true, type: "arrow" } } },
     nodes : { size : 50 },
-    // layout: { randomSeed: 6 },
 };
 
 function parseGraph(graph) {
