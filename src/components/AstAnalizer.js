@@ -315,27 +315,40 @@ class AstAnalyzer {
 
             // console.log('node.dependency', i, node.dependency);
 
+            const partOfSelf = selfArr.slice(0, i);
             for (let j = 0; j < node.dependency.length; j++) {
                 const el = node.dependency[j];
 
-                const partOfSelf = selfArr.slice(0, i);
-
+                const uniqArr = [];
                 for (let k = partOfSelf.length-1; k >= 0; k--) {
-                    const result = partOfSelf[k].self?.find(y => y === el);
+                    const x = partOfSelf[k];
+                    const result = x.self?.find(y => y === el);
                     if (result) {
-                        console.log(result);
+                        let currentType = '';
+                        if (x.context.length === 0) {
+                            currentType = 'no_contex';
+                        } else if (x.context[0].match('branch|loop')) {
+                            currentType = x.context[0];
+                        }
+                        if (!uniqArr.includes(currentType)) {
+                            this.links.push({
+                                from : i,
+                                to   :  x.id,
+                            });
+                            uniqArr.push(currentType);
+                        }
                     }
                 }
 
-                const x = selfArr.slice(0, i).reverse().find(x => x.self?.find(y => y === el));
-                // console.log(x);
+                // const x = selfArr.slice(0, i).reverse().find(x => x.self?.find(y => y === el));
+                // // console.log(x);
 
-                if (x) {
-                    this.links.push({
-                        from : i,
-                        to   : x.id,
-                    });
-                }
+                // if (x) {
+                //     this.links.push({
+                //         from : i,
+                //         to   : x.id,
+                //     });
+                // }
             }
         }
         console.log(this.links);

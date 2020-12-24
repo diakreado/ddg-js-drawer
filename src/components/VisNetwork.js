@@ -5,6 +5,7 @@ import { DataSet, Network } from 'vis';
 const options = {
     edges:{ arrows: { to: { enabled: true, type: "arrow" } } },
     nodes : { size : 50 },
+    // layout: { randomSeed: 6 },
 };
 
 function parseGraph(graph) {
@@ -20,6 +21,8 @@ function parseGraph(graph) {
     };
 }
 
+
+
 export default function VisNetwork(props) {
     const appRef  = createRef();
 
@@ -29,7 +32,6 @@ export default function VisNetwork(props) {
             nodes : parsResult.nodes,
             edges : props.links,
         };
-
         new Network(appRef.current, data, options);
     }, [appRef, props.graph, props.links]);
 
