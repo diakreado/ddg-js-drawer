@@ -301,20 +301,34 @@ class AstAnalyzer {
         const selfArr = this.blocks.reduce((acc, el, id) => {
             return [...acc, {
                 id,
-                self : el.self,
+                self    : el.self,
+                context : el.context,
             }]
         }, []);
 
+        console.log('selfArr', selfArr);
+
         for (let i = 0; i < this.blocks.length; i++) {
             const node = this.blocks[i];
-            const partOfSelf = selfArr.slice(0, i-1);
 
             node.dependency = [...new Set(node.dependency)];
+
+            // console.log('node.dependency', i, node.dependency);
 
             for (let j = 0; j < node.dependency.length; j++) {
                 const el = node.dependency[j];
 
-                const x = partOfSelf.find(x => x.self?.find(y => y === el));
+                const partOfSelf = selfArr.slice(0, i);
+
+                for (let k = partOfSelf.length-1; k >= 0; k--) {
+                    const result = partOfSelf[k].self?.find(y => y === el);
+                    if (result) {
+                        console.log(result);
+                    }
+                }
+
+                const x = selfArr.slice(0, i).reverse().find(x => x.self?.find(y => y === el));
+                // console.log(x);
 
                 if (x) {
                     this.links.push({
