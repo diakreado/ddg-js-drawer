@@ -163,6 +163,7 @@ class AstAnalyzer {
             rightPart.self.push(expression.left.name);
             if (expression.operator === '+=' || expression.operator === '-=') {
                 rightPart.dependency.push(expression.left.name);
+                // console.log(rightPart.dependency);
             }
         }
         return [{
@@ -193,11 +194,11 @@ class AstAnalyzer {
         for(const el of body.body) {
             const parseEls = this.parseElement(el);
             parseEls.forEach(item => { item.context.push(`loop_${localLoopId}`); });
-            if(parseEls[0].operation === 'break') { break; }
+            if(parseEls[0].operation === 'break') { this.order--; break; }
             nestedElements = nestedElements.concat(parseEls);
         }
 
-        this.order--;
+        // this.order--;
 
         return [{
             operation  : `while(${ testPart.value })`,
@@ -243,17 +244,17 @@ class AstAnalyzer {
         for(const el of body.body) {
             let parseEls = this.parseElement(el);
             parseEls.forEach(item => { item.context.push(`loop_${localLoopId}`); });
-            if(parseEls[0].operation === 'break') { break; }
+            if(parseEls[0].operation === 'break') { this.order--; break; }
             nestedElements = nestedElements.concat(parseEls);
         }
 
-        this.order--;
+        // this.order--;
 
         return [{
             operation  : `for(${ initArr[0].operation }; ${ testPart.value }; ${ updatetArr[0].operation })`,
             dependency : [...testPart.dependency, ...initArr[0].dependency, ...updatetArr[0].dependency],
             order      : order,
-            self       : initArr.self,
+            self       : initArr[0].self,
             context    : [],
             type       : 'for',
             last       : this.order,
@@ -369,6 +370,7 @@ class AstAnalyzer {
         }
         if (node.type === 'ForStatement') {
             const res = this.parseFor(node);
+            // console.log('res', res);
             this.order++;
             return res;
         }
@@ -399,6 +401,7 @@ class AstAnalyzer {
     }
 
     searceReverseInArray(whereSearch, whatSearch, currentContext, i) {
+        // if (whereSearch.length === 2) { console.log('searceReverseInArray', whereSearch, whatSearch, currentContext, i); }
         const uniqTypeArr = [];
         const uniqElArr   = [];
         let numberOfBranch = 0;
@@ -419,6 +422,10 @@ class AstAnalyzer {
                     if (uniqTypeArr.length === 1 && currentContext === uniqTypeArr[0]) {
                         continue;
                     }
+
+                    // if (whereSearch.length === 2 && i === 5) { console.log('lol ',uniqTypeArr, currentType); }
+
+                    // if (i === 6 && x.id === 5) { console.log('searceReverseInArray',whereSearch, whatSearch, currentContext, i); }
                     this.links.push({
                         from :  i,
                         to   :  x.id,
@@ -454,7 +461,6 @@ class AstAnalyzer {
         }, []);
 
         const loopInfo = {
-            begin : 0,
             end   : 0,
         }
         let loopArr = [];
@@ -468,11 +474,11 @@ class AstAnalyzer {
             }
 
             if (node.type === 'while' || node.type === 'for') {
-                loopInfo.begin = node.order + 1;
-                loopInfo.end   = node.last - 1;
+                loopInfo.end   = node.last;
                 loopArr = selfArr.slice(node.order + 1, node.last + 1);
             }
-            const context           = node.context[0];
+            console.log(loopArr, loopInfo);
+            const context = node.context[0];
 
             node.dependency = [...new Set(node.dependency)];
             for (let j = 0; j < node.dependency.length; j++) {
@@ -482,10 +488,17 @@ class AstAnalyzer {
                 this.searceReverseInArray(loopArr,   dependencyElement, context, i);
             }
         }
+        this.links = this.links.filter((thing, index) => {
+            const _thing = JSON.stringify(thing);
+            return index === this.links.findIndex(obj => {
+                return JSON.stringify(obj) === _thing;
+            });
+        });
+
         console.log('================================================');
-        console.log(this.blocks);
+        // console.log(this.blocks);
+        // console.log(this.links);
         console.log('================================================');
     }
-
 }
 export default AstAnalyzer;

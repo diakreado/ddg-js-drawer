@@ -172,7 +172,7 @@ function lol(n) {
 `;
 
     const [ast,  setAst ] = useState();
-    const [code, setCode] = useState(code8);
+    const [code, setCode] = useState(code6);
 
     useEffect(() => {
         try {
