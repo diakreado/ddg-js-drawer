@@ -20,8 +20,6 @@ function parseGraph(graph) {
     };
 }
 
-
-
 export default function VisNetwork(props) {
     const appRef  = createRef();
 

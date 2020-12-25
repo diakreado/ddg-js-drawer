@@ -1,4 +1,4 @@
-const parse    = require('@babel/parser').parse;
+import { parse } from '@babel/parser';
 
 const et = { // expressionType
     var     : 'Identifier',
@@ -20,6 +20,7 @@ class AstAnalyzer {
         this.branchId = 0;
         this.blocks   = [];
         this.links    = [];
+        this.order    = 0;
     }
 
     parseCode() {
@@ -63,6 +64,7 @@ class AstAnalyzer {
             dependency : [],
             self       : arrParams,
             context    : [],
+            order      : this.order,
         }];
     }
 
@@ -99,6 +101,7 @@ class AstAnalyzer {
             operation  : `${ node.kind } ${ declaraion.id.name } = ${ initPart.value }`,
             dependency : initPart.dependency,
             self       : initPart.self,
+            order      : this.order,
             context    : [],
         }];
     }
@@ -166,6 +169,7 @@ class AstAnalyzer {
             operation  : `${ expression.left.name } ${ expression.operator } ${ rightPart.value }`,
             dependency : rightPart.dependency,
             self       : rightPart.self,
+            order      : this.order,
             context    : [],
         }];
     }
@@ -173,6 +177,9 @@ class AstAnalyzer {
     parseWhile(node) {
         const test = node.test;
         const body = node.body;
+
+        const order = this.order;
+        this.order++;
 
         const localLoopId = this.loopId;
         this.loopId++;
@@ -186,14 +193,19 @@ class AstAnalyzer {
         for(const el of body.body) {
             const parseEls = this.parseElement(el);
             parseEls.forEach(item => { item.context.push(`loop_${localLoopId}`); });
-            nestedElements = nestedElements.concat(parseEls);
             if(parseEls[0].operation === 'break') { break; }
+            nestedElements = nestedElements.concat(parseEls);
         }
+
+        this.order--;
 
         return [{
             operation  : `while(${ testPart.value })`,
             dependency : testPart.dependency,
             context    : [],
+            order      : order,
+            type       : 'while',
+            last       : this.order,
         }, ...nestedElements];
     }
 
@@ -202,6 +214,9 @@ class AstAnalyzer {
         const test   = node.test;
         const update = node.update;
         const body   = node.body;
+
+        const order = this.order;
+        this.order++;
 
         const localLoopId = this.loopId;
         this.loopId++;
@@ -228,15 +243,20 @@ class AstAnalyzer {
         for(const el of body.body) {
             let parseEls = this.parseElement(el);
             parseEls.forEach(item => { item.context.push(`loop_${localLoopId}`); });
-            if(parseEls[0].operation === 'break') { parseEls = []; break; }
+            if(parseEls[0].operation === 'break') { break; }
             nestedElements = nestedElements.concat(parseEls);
         }
+
+        this.order--;
 
         return [{
             operation  : `for(${ initArr[0].operation }; ${ testPart.value }; ${ updatetArr[0].operation })`,
             dependency : [...testPart.dependency, ...initArr[0].dependency, ...updatetArr[0].dependency],
+            order      : order,
             self       : initArr.self,
             context    : [],
+            type       : 'for',
+            last       : this.order,
         }, ...nestedElements];
     }
 
@@ -251,9 +271,16 @@ class AstAnalyzer {
         const consequentBranchId = this.branchId;
         this.branchId++;
         const consequentArr = this.parseElement(consequent);
+        // console.log(consequentArr);
+        // let consequentArrReturn = false;
         for(const el of consequentArr) {
             el.context.push(`branch_${consequentBranchId}`);
+            if (el.return) {
+            //     consequentArrReturn = true;
+                el.return = false;
+            }
         }
+        console.log(consequentArr);
 
         let alternateArr = [];
         if (alternate) {
@@ -262,6 +289,10 @@ class AstAnalyzer {
             alternateArr  = this.parseElement(alternate);
             for(const el of alternateArr) {
                 el.context.push(`branch_${alternateBranchId}`);
+                if (el.return) {
+                //     consequentArrReturn = true;
+                    el.return = false;
+                }
             }
         }
 
@@ -272,38 +303,133 @@ class AstAnalyzer {
             dependency : testPart.dependency,
             context    : [],
             self       : [],
+            order      : this.order,
         }, ...consequentArr, ...alternateArr];
+    }
+
+    parseReturnStatement(node) {
+        let rightPart = { value       :  '',
+                          dependency  :  [] };
+
+        if (node.argument) {
+            if (node.argument.type === et.var) {
+                rightPart.value = node.argument.name;
+                rightPart.dependency.push(node.argument.name);
+            }
+            if (node.argument.type === et.num  ||
+                node.argument.type === et.text ||
+                node.argument.type === et.bool)
+            {
+                rightPart.value = node.argument.value;
+            }
+            if (node.argument.type === et.arr) {
+                this.parseArr(node.argument, rightPart);
+            }
+            if (node.argument.type === et.bin ||
+                node.argument.type === et.logic)
+            {
+                rightPart.value = '';
+                this.parseBinaryExpression(node.argument, rightPart);
+            }
+        }
+        return [{
+            operation  : `return ${rightPart.value}`,
+            return     : true,
+            dependency : rightPart.dependency,
+            context    : [],
+            self       : [],
+            order      : this.order,
+        }];
     }
 
     parseElement(node) {
         if (Array.isArray(node)) {
-            return node.reduce((acc, current) => {
-                return [...acc, ...this.parseElement(current)];
-            }, []);
+            let resArr = [];
+            for (const current of node) {
+                const newEl = this.parseElement(current);
+                resArr = [...resArr, ...newEl];
+                if (newEl[0].operation.match('return')) { break; }
+            }
+            return resArr;
         }
         if (node.type === 'VariableDeclaration') {
-            return this.parseVariableDeclaration(node);
+            const res = this.parseVariableDeclaration(node);
+            this.order++;
+            return res;
         }
         if (node.type === 'ExpressionStatement') {
-            return this.parseExpressionStatement(node.expression);
+            const res = this.parseExpressionStatement(node.expression);
+            this.order++;
+            return res;
         }
         if (node.type === 'WhileStatement') {
-            return this.parseWhile(node);
+            const res = this.parseWhile(node);
+            this.order++;
+            return res;
         }
         if (node.type === 'ForStatement') {
-            return this.parseFor(node);
+            const res = this.parseFor(node);
+            this.order++;
+            return res;
         }
         if (node.type === 'BlockStatement') {
-            return this.parseElement(node.body);
+            const res = this.parseElement(node.body);
+            this.order++;
+            return res;
+        }
+        if (node.type === 'ReturnStatement') {
+            const res = this.parseReturnStatement(node);
+            console.log(res);
+            this.order++;
+            return res;
         }
         if (node.type === 'BreakStatement') {
-            return [{   operation  : 'break',
-                        dependency : [],
-                        self       : [],
-                        context    : [],  }];
+            const res = [{   operation  : 'break',
+                             dependency : [],
+                             self       : [],
+                             context    : [],  }];
+            this.order++;
+            return res;
         }
         if (node.type === 'IfStatement') {
-            return this.parseIfStatement(node);
+            const res = this.parseIfStatement(node);
+            this.order++;
+            return res;
+        }
+    }
+
+    searceReverseInArray(whereSearch, whatSearch, currentContext, i) {
+        const uniqTypeArr = [];
+        const uniqElArr   = [];
+        let numberOfBranch = 0;
+        for (let k = whereSearch.length-1; k >= 0; k--) {
+            const x = whereSearch[k];
+            const result = x.self?.find(y => y === whatSearch);
+            if (result) {
+                let currentType = '';
+                if (x.context.length === 0) {
+                    currentType = 'no_contex';
+                } else if (x.context[0].match('branch|loop')) {
+                    currentType = x.context[0];
+                }
+                if (!uniqTypeArr.includes(currentType) && numberOfBranch < 2) {
+                    if (currentContext && currentContext.match('branch') && currentType.match('branch') && currentContext !== currentType) {
+                        continue;
+                    }
+                    if (uniqTypeArr.length === 1 && currentContext === uniqTypeArr[0]) {
+                        continue;
+                    }
+                    this.links.push({
+                        from :  i,
+                        to   :  x.id,
+                    });
+                    if (currentType.match('branch')) {
+                        numberOfBranch++;
+                    }
+                    uniqElArr.push(x.self[0]);
+                    uniqTypeArr.push(currentType);
+                }
+            }
         }
     }
 
@@ -311,10 +437,12 @@ class AstAnalyzer {
         const functionNode = this.tree.program.body[0];
         this.blocks = this.blocks.concat(this.parseFunctionDeclaration(functionNode));
         const nodes = this.tree.program.body[0].body.body;
-        nodes.forEach(el => { 
+
+        for (const el of nodes) {
             const operations = this.parseElement(el);
             this.blocks = this.blocks.concat(operations);
-        });
+            if (operations.find(x => x.return)) { break; }
+        }
 
         const selfArr = this.blocks.reduce((acc, el, id) => {
             return [...acc, {
@@ -322,58 +450,42 @@ class AstAnalyzer {
                 self    : el.self,
                 context : el.context,
                 value   : el.operation,
-            }]
+            }];
         }, []);
 
-        // console.log('selfArr', selfArr);
-
+        const loopInfo = {
+            begin : 0,
+            end   : 0,
+        }
+        let loopArr = [];
         for (let i = 0; i < this.blocks.length; i++) {
             const node = this.blocks[i];
 
-            node.dependency = [...new Set(node.dependency)];
             const partOfSelf = selfArr.slice(0, i);
+
+            if (i > loopInfo.end) {
+                loopArr = [];
+            }
+
+            if (node.type === 'while' || node.type === 'for') {
+                loopInfo.begin = node.order + 1;
+                loopInfo.end   = node.last - 1;
+                loopArr = selfArr.slice(node.order + 1, node.last + 1);
+            }
+            const context           = node.context[0];
+
+            node.dependency = [...new Set(node.dependency)];
             for (let j = 0; j < node.dependency.length; j++) {
                 const dependencyElement = node.dependency[j];
-                const context           = node.context[0];
 
-                const uniqTypeArr = [];
-                const uniqElArr   = [];
-                let numberOfBranch = 0;
-                for (let k = partOfSelf.length-1; k >= 0; k--) {
-                    const x = partOfSelf[k];
-                    const result = x.self?.find(y => y === dependencyElement);
-                    if (result) {
-                        let currentType = '';
-                        if (x.context.length === 0) {
-                            currentType = 'no_contex';
-                        } else if (x.context[0].match('branch|loop')) {
-                            currentType = x.context[0];
-                        }
-                        if (!uniqTypeArr.includes(currentType) && numberOfBranch < 2) {
-                            if (context && context.match('branch') && currentType.match('branch') && context !== currentType) {
-                                continue;
-                            }
-                            if (uniqTypeArr.length === 1 && context === uniqTypeArr[0]) {
-                                continue;
-                            }
-                            this.links.push({
-                                from :  i,
-                                to   :  x.id,
-                            });
-                            if (currentType.match('branch')) {
-                                numberOfBranch++;
-                            }
-                            uniqElArr.push(x.self[0]);
-                            uniqTypeArr.push(currentType);
-                        }
-                    }
-                }
+                this.searceReverseInArray(partOfSelf, dependencyElement, context, i);
+                this.searceReverseInArray(loopArr,   dependencyElement, context, i);
             }
         }
-        // console.log(this.links);
-        // console.log('================================================');
+        console.log('================================================');
+        console.log(this.blocks);
+        console.log('================================================');
     }
 
 }
-
-module.exports = AstAnalyzer;
+export default AstAnalyzer;

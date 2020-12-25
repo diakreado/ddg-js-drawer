@@ -139,7 +139,7 @@ function lol(n) {
 }
 `;
 const code8 = `
-function lol() {
+function lol(n) {
     let a = 3;
     let b = a;
     let c = 93 + n;
@@ -172,7 +172,7 @@ function lol(n) {
 `;
 
     const [ast,  setAst ] = useState();
-    const [code, setCode] = useState(code6);
+    const [code, setCode] = useState(code8);
 
     useEffect(() => {
         try {
